@@ -391,8 +391,8 @@ def build_spn_detail(candidate_spns_text, bom_set, sys_groups):
 def build_mpn_compare(mapped_df, original_mpn_df, system_mpn_df):
     bom_groups = {}
     for _, row in original_mpn_df.iterrows():
-        cpn = normalize_text(row['Customer_CPN'])
-        mpn = normalize_key(row['BOM_MPN'])
+        cpn = normalize_text(row["Customer_CPN"])
+        mpn = normalize_key(row["BOM_MPN"])
         if cpn not in bom_groups:
             bom_groups[cpn] = set()
         if mpn:
@@ -400,8 +400,8 @@ def build_mpn_compare(mapped_df, original_mpn_df, system_mpn_df):
 
     sys_groups = {}
     for _, row in system_mpn_df.iterrows():
-        spn = normalize_text(row['SPN'])
-        mpn = normalize_key(row['System_MPN'])
+        spn = normalize_text(row["SPN"])
+        mpn = normalize_key(row["System_MPN"])
         if spn not in sys_groups:
             sys_groups[spn] = set()
         if mpn:
@@ -409,29 +409,34 @@ def build_mpn_compare(mapped_df, original_mpn_df, system_mpn_df):
 
     compare_rows = []
     for _, row in mapped_df.iterrows():
-        cpn = normalize_text(row['Customer_CPN'])
-        spn = normalize_text(row.get('SPN', ''))
-        desc = normalize_text(row.get('Description', ''))
-        loc = normalize_text(row.get('Location', ''))
-        selection_status = normalize_text(row.get('Selection_Status', ''))
-        candidate_spns = normalize_text(row.get('Candidate_SPNs', ''))
+        cpn = normalize_text(row["Customer_CPN"])
+        spn = normalize_text(row.get("SPN", ""))
+        desc = normalize_text(row.get("Description", ""))
+        loc = normalize_text(row.get("Location", ""))
+        selection_status = normalize_text(row.get("Selection_Status", ""))
+        candidate_spns = normalize_text(row.get("Candidate_SPNs", ""))
         bom_set = bom_groups.get(cpn, set())
-        spn_detail = build_spn_detail(candidate_spns, bom_set, sys_groups) if candidate_spns else ''
+
+        # 只有 Ambiguous 才顯示 detail
+        if selection_status == "Ambiguous - same overlap":
+            spn_detail = build_spn_detail(candidate_spns, bom_set, sys_groups)
+        else:
+            spn_detail = ""
 
         if not spn:
             compare_rows.append({
-                'Customer_CPN': cpn,
-                'SPN': '',
-                'Description': desc,
-                'Location': loc,
-                'Candidate_SPNs': candidate_spns,
-                'Selection_Status': selection_status,
-                'BOM_MPN_List': ' / '.join(sorted(bom_set)),
-                'System_MPN_List': '',
-                'Missing_In_System': '',
-                'Extra_In_System': '',
-                'SPN_Detail_Comparison': spn_detail,
-                'MPN_Compare_Status': selection_status if selection_status else 'Missing SPN',
+                "Customer_CPN": cpn,
+                "SPN": "",
+                "Description": desc,
+                "Location": loc,
+                "Candidate_SPNs": candidate_spns,
+                "Selection_Status": selection_status,
+                "BOM_MPN_List": " / ".join(sorted(bom_set)),
+                "System_MPN_List": "",
+                "Missing_In_System": "",
+                "Extra_In_System": "",
+                "SPN_Detail_Comparison": spn_detail,
+                "MPN_Compare_Status": selection_status if selection_status else "Missing SPN",
             })
             continue
 
@@ -440,29 +445,29 @@ def build_mpn_compare(mapped_df, original_mpn_df, system_mpn_df):
         extra_in_system = sorted(system_set - bom_set)
 
         if not bom_set and not system_set:
-            status = 'No MPN Data'
+            status = "No MPN Data"
         elif not missing_in_system and not extra_in_system:
-            status = 'Full Match'
+            status = "Full Match"
         elif missing_in_system and extra_in_system:
-            status = 'Partial Match'
+            status = "Partial Match"
         elif missing_in_system:
-            status = 'Missing in System'
+            status = "Missing in System"
         else:
-            status = 'Extra in System'
+            status = "Extra in System"
 
         compare_rows.append({
-            'Customer_CPN': cpn,
-            'SPN': spn,
-            'Description': desc,
-            'Location': loc,
-            'Candidate_SPNs': candidate_spns,
-            'Selection_Status': selection_status,
-            'BOM_MPN_List': ' / '.join(sorted(bom_set)),
-            'System_MPN_List': ' / '.join(sorted(system_set)),
-            'Missing_In_System': ' / '.join(missing_in_system),
-            'Extra_In_System': ' / '.join(extra_in_system),
-            'SPN_Detail_Comparison': spn_detail,
-            'MPN_Compare_Status': status,
+            "Customer_CPN": cpn,
+            "SPN": spn,
+            "Description": desc,
+            "Location": loc,
+            "Candidate_SPNs": candidate_spns,
+            "Selection_Status": selection_status,
+            "BOM_MPN_List": " / ".join(sorted(bom_set)),
+            "System_MPN_List": " / ".join(sorted(system_set)),
+            "Missing_In_System": " / ".join(missing_in_system),
+            "Extra_In_System": " / ".join(extra_in_system),
+            "SPN_Detail_Comparison": spn_detail,
+            "MPN_Compare_Status": status,
         })
 
     return pd.DataFrame(compare_rows)
@@ -524,33 +529,67 @@ def make_result_excel(original_base_df, original_mpn_df, mapped_df, compare_df, 
     compare_sorted = compare_df.copy()
 
     status_priority = {
-        'Missing SPN': 1,
-        'Ambiguous - same overlap': 1,
-        'Missing in System': 2,
-        'Extra in System': 2,
-        'Partial Match': 3,
-        'No MPN Data': 4,
-        'Full Match': 5,
+        "Missing SPN": 1,
+        "Ambiguous - same overlap": 2,
+        "Missing in System": 3,
+        "Extra in System": 4,
+        "Partial Match": 5,
+        "No MPN Data": 6,
+        "Full Match": 7,
     }
 
-    compare_sorted['__sort_priority'] = compare_sorted['MPN_Compare_Status'].map(status_priority).fillna(99)
+    compare_sorted["__sort_priority"] = compare_sorted["MPN_Compare_Status"].map(status_priority).fillna(99)
     compare_sorted = compare_sorted.sort_values(
-        by=['__sort_priority', 'MPN_Compare_Status', 'Customer_CPN'],
+        by=["__sort_priority", "MPN_Compare_Status", "Customer_CPN"],
         ascending=[True, True, True],
-        kind='stable'
-    ).drop(columns=['__sort_priority'])
+        kind="stable"
+    ).drop(columns=["__sort_priority"])
 
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        original_base_df.to_excel(writer, sheet_name='Original_BOM_Normalized', index=False)
-        original_mpn_df.to_excel(writer, sheet_name='Original_BOM_MPN_List', index=False)
-        mapped_df.to_excel(writer, sheet_name='CPN_to_SPN_Map', index=False)
-        compare_sorted.to_excel(writer, sheet_name='MPN_Compare', index=False)
-        missing_spn_df.to_excel(writer, sheet_name='Missing_SPN', index=False)
-        summary_df.to_excel(writer, sheet_name='Summary', index=False)
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        original_base_df.to_excel(writer, sheet_name="Original_BOM_Normalized", index=False)
+        original_mpn_df.to_excel(writer, sheet_name="Original_BOM_MPN_List", index=False)
+        mapped_df.to_excel(writer, sheet_name="CPN_to_SPN_Map", index=False)
+        compare_sorted.to_excel(writer, sheet_name="MPN_Compare", index=False)
+        missing_spn_df.to_excel(writer, sheet_name="Missing_SPN", index=False)
+        summary_df.to_excel(writer, sheet_name="Summary", index=False)
+
+        from openpyxl.styles import PatternFill
+
+        ws = writer.book["MPN_Compare"]
+
+        # 顏色分開
+        missing_spn_fill = PatternFill(fill_type="solid", start_color="C00000", end_color="C00000")   # 最明顯深紅
+        ambiguous_fill = PatternFill(fill_type="solid", start_color="E06666", end_color="E06666")     # 紅
+        missing_system_fill = PatternFill(fill_type="solid", start_color="F4B183", end_color="F4B183")# 深橘
+        extra_system_fill = PatternFill(fill_type="solid", start_color="FCE5CD", end_color="FCE5CD")  # 淡橘
+        partial_fill = PatternFill(fill_type="solid", start_color="FFF2CC", end_color="FFF2CC")       # 黃
+
+        headers = [cell.value for cell in ws[1]]
+        status_col_idx = headers.index("MPN_Compare_Status") + 1
+
+        for row_idx in range(2, ws.max_row + 1):
+            status = ws.cell(row=row_idx, column=status_col_idx).value
+
+            if status == "Missing SPN":
+                fill = missing_spn_fill
+            elif status == "Ambiguous - same overlap":
+                fill = ambiguous_fill
+            elif status == "Missing in System":
+                fill = missing_system_fill
+            elif status == "Extra in System":
+                fill = extra_system_fill
+            elif status == "Partial Match":
+                fill = partial_fill
+            else:
+                fill = None
+
+            if fill:
+                for col_idx in range(1, ws.max_column + 1):
+                    ws.cell(row=row_idx, column=col_idx).fill = fill
 
     output.seek(0)
     return output
-
+    
 st.title('Original BOM → CPN/SPN/MPN Mapping Tool')
 st.caption(
     'Uses organized mapping files:\n'
